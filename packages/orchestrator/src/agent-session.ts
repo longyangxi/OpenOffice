@@ -609,6 +609,12 @@ export class AgentSession {
                 saveSessionId(this.agentId, msg.session_id);
                 console.log(`[Agent ${this.name}] Session ID: ${msg.session_id}`);
               }
+              // GitHub Copilot reports its sessionId only on the final result line.
+              if (msg.type === "result" && msg.sessionId) {
+                this.sessionId = msg.sessionId;
+                saveSessionId(this.agentId, msg.sessionId);
+                console.log(`[Agent ${this.name}] Session ID: ${msg.sessionId}`);
+              }
               if (msg.type === "assistant" && msg.message?.content) {
                 // Live token usage from per-turn usage (dedup same-turn repeats)
                 if (msg.message.usage) {
@@ -670,6 +676,13 @@ export class AgentSession {
                 }
                 // (conversationLog removed — recovery context now uses @bit-office/memory's
                 //  structured SessionSummary instead of raw message fragments)
+              } else if (msg.type === "assistant.message" && msg.data?.content) {
+                // GitHub Copilot JSONL: final answer arrives as one assistant.message
+                // (token deltas use assistant.message_delta, which we skip to avoid dupes).
+                const text = msg.data.content as string;
+                this.stdoutBuffer += text + "\n";
+                handleTextLine(text, true);
+                this.persistWorkState("running");
               } else if (msg.type === "result") {
                 // Result message: authoritative session total from msg.usage
                 if (msg.usage) {
