@@ -236,6 +236,29 @@ const VERSION_PROBES: Record<string, string> = {
   sapling: "sp --version 2>&1 | grep -iq sapling",
 };
 
+/**
+ * `which`/`execSync` above run through a POSIX shell (Git Bash on Windows), so resolved
+ * paths come back like "/c/Users/arsla/.local/bin/claude". Node's spawn() on Windows goes
+ * through the native Win32 CreateProcess API, which doesn't understand that syntax and
+ * fails with ENOENT. Convert to a native Windows path (and add .exe/.cmd if needed) so
+ * spawn() can actually find the binary.
+ */
+function toNativeWindowsPath(posixPath: string): string {
+  const match = posixPath.match(/^\/([a-zA-Z])\/(.*)$/);
+  if (!match) return posixPath;
+  const [, drive, rest] = match;
+  let winPath = `${drive.toUpperCase()}:\\${rest.replace(/\//g, "\\")}`;
+  if (!existsSync(winPath)) {
+    for (const ext of [".exe", ".cmd", ".bat"]) {
+      if (existsSync(winPath + ext)) {
+        winPath += ext;
+        break;
+      }
+    }
+  }
+  return winPath;
+}
+
 /** Check which AI CLI tools are installed on this machine.
  *  Also resolves each detected backend's command to its absolute path
  *  so that spawn() works even if the child process env has a different PATH. */
@@ -253,8 +276,9 @@ export function detectBackends(): string[] {
       }
       // Resolve absolute path so spawn() doesn't depend on child env PATH
       try {
-        const absPath = execSync(`which ${backend.command}`, { encoding: "utf-8", timeout: 3000 }).trim();
+        let absPath = execSync(`which ${backend.command}`, { encoding: "utf-8", timeout: 3000 }).trim();
         if (absPath && absPath.startsWith("/")) {
+          if (process.platform === "win32") absPath = toNativeWindowsPath(absPath);
           backend.command = absPath;
           console.log(`[backends] ${backend.id}: resolved to ${absPath}`);
         }
