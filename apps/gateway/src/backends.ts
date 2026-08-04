@@ -230,6 +230,8 @@ export function getAllBackends(): AIBackend[] {
 const VERSION_PROBES: Record<string, string> = {
   // "agent" is too generic — verify it's actually Cursor's CLI
   cursor: "agent --version 2>&1 | grep -iq cursor",
+  // "copilot" also names AWS Copilot CLI — verify GitHub's agentic CLI
+  copilot: "copilot --version 2>&1 | grep -Eiq 'GitHub Copilot CLI|github copilot'",
   // "pi" collides with math utilities, coreutils, etc.
   pi: "pi --version 2>&1 | grep -iq pi",
   // "sp" collides with Sapling SCM and other tools
