@@ -202,12 +202,38 @@ function getSkillEntryPath(skillName: string): string | null {
   return null;
 }
 
+function normalizeAgentDef(raw: unknown): AgentDefinition | null {
+  if (!raw || typeof raw !== "object") return null;
+  const def = raw as Partial<AgentDefinition>;
+  if (
+    typeof def.id !== "string" ||
+    typeof def.name !== "string" ||
+    typeof def.role !== "string"
+  ) {
+    return null;
+  }
+
+  return {
+    id: def.id,
+    name: def.name,
+    role: def.role,
+    skills: typeof def.skills === "string" ? def.skills : "",
+    personality: typeof def.personality === "string" ? def.personality : "",
+    palette: typeof def.palette === "number" ? def.palette : 0,
+    isBuiltin: def.isBuiltin === true,
+    teamRole: def.teamRole === "leader" || def.teamRole === "reviewer" ? def.teamRole : "dev",
+    skillFiles: Array.isArray(def.skillFiles) ? def.skillFiles.filter((s): s is string => typeof s === "string") : undefined,
+  };
+}
+
 function loadAgentDefs(): AgentDefinition[] {
   try {
     if (existsSync(AGENTS_FILE)) {
       const raw = JSON.parse(readFileSync(AGENTS_FILE, "utf-8"));
       if (Array.isArray(raw.agents)) {
-        const saved: AgentDefinition[] = raw.agents;
+        const saved = (raw.agents as unknown[])
+          .map(normalizeAgentDef)
+          .filter((a): a is AgentDefinition => a !== null);
         // Keep only custom (non-builtin) agents from the saved file
         const custom = saved.filter(a => !a.isBuiltin);
         // Rebuild: fresh builtins (in DEFAULT order) + custom agents appended
