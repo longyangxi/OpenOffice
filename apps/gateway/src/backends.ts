@@ -240,20 +240,23 @@ const VERSION_PROBES: Record<string, string> = {
  * `which`/`execSync` above run through a POSIX shell (Git Bash on Windows), so resolved
  * paths come back like "/c/Users/arsla/.local/bin/claude". Node's spawn() on Windows goes
  * through the native Win32 CreateProcess API, which doesn't understand that syntax and
- * fails with ENOENT. Convert to a native Windows path (and add .exe/.cmd if needed) so
- * spawn() can actually find the binary.
+ * fails with ENOENT. Convert to a native Windows path so spawn() can actually find the
+ * binary.
+ *
+ * npm/global installs on Windows commonly create BOTH an extensionless POSIX shell shim
+ * and a .cmd/.exe wrapper side by side. Git Bash's `which` may return the extensionless
+ * shim, which exists on disk but is a shell script Win32 spawn() cannot execute directly.
+ * So a real Windows-executable candidate (.exe/.cmd/.bat) must be preferred FIRST, falling
+ * back to the bare converted path only if none of those exist.
  */
 function toNativeWindowsPath(posixPath: string): string {
   const match = posixPath.match(/^\/([a-zA-Z])\/(.*)$/);
   if (!match) return posixPath;
   const [, drive, rest] = match;
-  let winPath = `${drive.toUpperCase()}:\\${rest.replace(/\//g, "\\")}`;
-  if (!existsSync(winPath)) {
-    for (const ext of [".exe", ".cmd", ".bat"]) {
-      if (existsSync(winPath + ext)) {
-        winPath += ext;
-        break;
-      }
+  const winPath = `${drive.toUpperCase()}:\\${rest.replace(/\//g, "\\")}`;
+  for (const ext of [".exe", ".cmd", ".bat"]) {
+    if (existsSync(winPath + ext)) {
+      return winPath + ext;
     }
   }
   return winPath;
