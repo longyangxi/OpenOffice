@@ -90,6 +90,31 @@ const backends: AIBackend[] = [
       return ["exec", prompt, "--full-auto", "--skip-git-repo-check"];
     },
   },
+  {
+    id: "copilot",
+    name: "GitHub Copilot",
+    command: "copilot",
+    instructionPath: ".github/copilot-instructions.md",
+    stability: "stable",
+    guardType: "flag",             // --allow-all-tools / --allow-all
+    supportsResume: true,
+    supportsAgentType: false,
+    supportsNativeWorktree: false,
+    supportsStructuredOutput: true,
+    buildArgs(prompt, opts) {
+      // JSONL: one event per line, final {"type":"result","sessionId","exitCode"}.
+      const args = ["-p", prompt, "--output-format", "json"];
+      // Non-interactive runs must auto-approve and never stop to ask the user.
+      args.push(opts.fullAccess ? "--allow-all" : "--allow-all-tools", "--no-ask-user");
+      if (!opts.skipResume && opts.resumeSessionId) {
+        args.push("--session-id", opts.resumeSessionId);
+      } else if (!opts.skipResume && opts.continue) {
+        args.push("--continue");
+      }
+      if (opts.model) args.push("--model", opts.model);
+      return args;
+    },
+  },
 
   // ── Beta backends ─────────────────────────────────────────────
   {
@@ -109,24 +134,6 @@ const backends: AIBackend[] = [
   },
 
   // ── Experimental backends ─────────────────────────────────────
-  {
-    id: "copilot",
-    name: "GitHub Copilot",
-    command: "copilot",
-    instructionPath: ".github/copilot-instructions.md",
-    stability: "experimental",
-    guardType: "none",
-    supportsResume: false,
-    supportsAgentType: false,
-    supportsNativeWorktree: false,
-    supportsStructuredOutput: false,
-    buildArgs(prompt, opts) {
-      const args = ["-p", prompt];
-      if (opts.fullAccess) args.push("--allow-all-tools");
-      if (opts.model) args.push("--model", opts.model);
-      return args;
-    },
-  },
   {
     id: "cursor",
     name: "Cursor CLI",
